@@ -1,0 +1,22 @@
+# Node
+node_modules/
+
+# Environment variables
+.env
+
+# Uploads & generated files
+uploads/
+backend/uploads/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
