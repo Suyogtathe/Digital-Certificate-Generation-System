@@ -48,9 +48,12 @@ router.post("/", upload.single("bgImage"), async (req, res) => {
   try {
     const { name, description, type, price, fields, qr } = req.body;
 
-    const bgImageUrl = req.file
-      ? `${process.env.FILE_STORAGE_PATH || "uploads"}/${req.file.filename}`
-      : "";
+   const baseUrl = process.env.BASE_URL; // Render backend URL
+
+const bgImageUrl = req.file
+  ? `${baseUrl}/uploads/${req.file.filename}`
+  : "";
+
 
     const template = await Template.create({
       name,
