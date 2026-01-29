@@ -62,6 +62,13 @@ app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use("/api/bulk-certificates", require("./routes/bulkCertificates"));
 
 
+// Health check route (IMPORTANT)
+app.get("/", (req, res) => {
+  res.send("Backend is running");
+});
+
+
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
