@@ -82,6 +82,13 @@ function downloadImage(url) {
         return downloadImage(response.headers.location).then(resolve).catch(reject);
       }
 
+      // Check Content-Type to prevent saving HTML (404 pages) as images
+      const contentType = response.headers['content-type'];
+      if (contentType && contentType.includes('text/html')) {
+        reject(new Error(`Validation Failed: URL returned HTML instead of Image (Likely 404/Not Found). URL: ${url}`));
+        return;
+      }
+
       if (response.statusCode !== 200) {
         reject(new Error(`Failed to download image: ${response.statusCode}`));
         return;
@@ -182,6 +189,9 @@ async function resolveImagePath(relPath) {
       return tempPath;
     } catch (err) {
       console.error(`[pdfService] Failed to download image from frontend (${remoteUrl}): ${err.message}`);
+      // FALLBACK TO GENERATING WITHOUT BG (Or return null) to avoid "Unknown Image Format" crash
+      // Better yet, let's return null so we just get a blank white cert instead of a crash
+      return null;
     }
   }
 
