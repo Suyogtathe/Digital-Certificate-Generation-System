@@ -160,9 +160,21 @@ router.post('/upload-signature', authMiddleware, (req, res) => {
 
     try {
       const signatureUrl = `/uploads/signatures/${req.file.filename}`;
-      await User.findByIdAndUpdate(req.user.id, { signatureUrl });
+
+      // Read file and convert to base64 for persistent storage
+      const filePath = path.join(__dirname, '../../uploads/signatures', req.file.filename);
+      const fileBuffer = fs.readFileSync(filePath);
+      const base64Data = `data:${req.file.mimetype};base64,${fileBuffer.toString('base64')}`;
+
+      // Store both URL (for backward compatibility) and base64 data (for production)
+      await User.findByIdAndUpdate(req.user.id, {
+        signatureUrl,
+        signatureData: base64Data
+      });
+
       res.json({ success: true, signatureUrl });
     } catch (dbErr) {
+      console.error("Signature upload error:", dbErr);
       res.status(500).json({ message: "Database error" });
     }
   });

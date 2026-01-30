@@ -102,15 +102,35 @@ async function resolveImagePath(relPath) {
   // Base directory (Root of backend)
   const baseDir = path.resolve(__dirname, '..', '..');
 
-  // 1. Clean the input (remove query strings, etc)
+  // 1. Clean the input
+  // If it's a full URL, trying to download it directly might be best if it's external
+  if (relPath.startsWith('http://') || relPath.startsWith('https://')) {
+    try {
+      console.log(`[pdfService] downloading external URL: ${relPath}`);
+      const imageBuffer = await downloadImage(relPath);
+      const tempDir = path.join(baseDir, 'uploads', 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      const tempPath = path.join(tempDir, `ext-${Date.now()}-${path.basename(relPath).split('?')[0]}`);
+      fs.writeFileSync(tempPath, imageBuffer);
+      return tempPath;
+    } catch (err) {
+      console.error(`[pdfService] Failed to download external image: ${err.message}`);
+      return null;
+    }
+  }
+
   const stripped = relPath.split('?')[0];
   const cleanRel = stripped.replace(/^[\/\\]/, '');
 
-  // 2. Try local filesystem first (for development)
+  // 2. Try local filesystem first (for development or if file exists locally)
+  // We check multiple potential locations
   const localPaths = [
     path.join(baseDir, cleanRel),
     path.join(baseDir, 'uploads', cleanRel),
-    path.join(baseDir, 'uploads', 'backgrounds', path.basename(cleanRel))
+    path.join(baseDir, 'uploads', 'backgrounds', path.basename(cleanRel)),
+    path.join(baseDir, 'public', cleanRel) // sometimes in public
   ];
 
   for (const localPath of localPaths) {
@@ -120,11 +140,16 @@ async function resolveImagePath(relPath) {
     }
   }
 
-  // 3. In production, try to download from Netlify frontend
+  // 3. In production (or if local missing), try to download from Netlify frontend
+  // This is crucial for Render + Netlify setup where bg images are on frontend
   if (FRONTEND_URL && !FRONTEND_URL.includes('localhost')) {
     try {
-      const imageUrl = `${FRONTEND_URL}${stripped}`;
-      console.log(`[pdfService] Downloading from: ${imageUrl}`);
+      // Ensure we don't double slash
+      const baseUrl = FRONTEND_URL.endsWith('/') ? FRONTEND_URL.slice(0, -1) : FRONTEND_URL;
+      const pathPart = cleanRel.startsWith('/') ? cleanRel : `/${cleanRel}`;
+      const imageUrl = `${baseUrl}${pathPart}`;
+
+      console.log(`[pdfService] Downloading from Frontend: ${imageUrl}`);
       const imageBuffer = await downloadImage(imageUrl);
 
       // Save to temp directory for use
@@ -133,12 +158,15 @@ async function resolveImagePath(relPath) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
 
-      const tempPath = path.join(tempDir, path.basename(stripped));
+      // We need a safer filename
+      const safeName = path.basename(stripped).replace(/[^a-zA-Z0-9.-]/g, '_');
+      const tempPath = path.join(tempDir, safeName);
+
       fs.writeFileSync(tempPath, imageBuffer);
       console.log(`[pdfService] Downloaded and saved to: ${tempPath}`);
       return tempPath;
     } catch (err) {
-      console.error(`[pdfService] Failed to download image: ${err.message}`);
+      console.error(`[pdfService] Failed to download image from frontend: ${err.message}`);
     }
   }
 
@@ -242,15 +270,26 @@ async function generateCertificatePdf(template, data, outputPath, certId, qrUrl)
       drawAt(dateVal, L.dateValue.x, L.dateValue.y, L.dateValue.fontSize, L.dateValue.font, '#333');
 
       // SIGNATURE
-      // data.signatureUrl might come in differently
-      const sigUrl = data.signatureUrl || (data.organization && data.organization.signatureUrl);
-      if (sigUrl) {
-        const sigPath = await resolveImagePath(sigUrl);
-        if (sigPath && fs.existsSync(sigPath)) {
-          const sW = width * L.signatureImg.w;
-          const sH = height * L.signatureImg.h;
-          // Center the image over the line
-          doc.image(sigPath, width * L.signatureImg.x, height * L.signatureImg.y, { width: sW, height: sH, fit: [sW, sH] });
+      // Support base64 data URIs (stored in database) or file paths
+      const sigData = data.signatureData || data.signatureUrl || (data.organization && data.organization.signatureData);
+      if (sigData) {
+        const sW = width * L.signatureImg.w;
+        const sH = height * L.signatureImg.h;
+
+        // Check if it's a base64 data URI
+        if (sigData.startsWith('data:image')) {
+          // PDFKit can handle base64 data URIs directly
+          try {
+            doc.image(sigData, width * L.signatureImg.x, height * L.signatureImg.y, { width: sW, height: sH, fit: [sW, sH] });
+          } catch (sigErr) {
+            console.error('[pdfService] Failed to render base64 signature:', sigErr.message);
+          }
+        } else {
+          // Try to resolve as file path
+          const sigPath = await resolveImagePath(sigData);
+          if (sigPath && fs.existsSync(sigPath)) {
+            doc.image(sigPath, width * L.signatureImg.x, height * L.signatureImg.y, { width: sW, height: sH, fit: [sW, sH] });
+          }
         }
       }
       drawAt(L.signatoryLine.text, L.signatoryLine.x, L.signatoryLine.y, L.signatoryLine.fontSize, L.signatoryLine.font, '#333');

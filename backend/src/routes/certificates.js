@@ -128,6 +128,7 @@ router.post('/generate-by-purchase', async (req, res) => {
       issueDate: studentData.date || new Date().toISOString().split('T')[0],
       organizationName: orgUser ? orgUser.organizationName : "Organization",
       signatureUrl: orgUser ? orgUser.signatureUrl : null,
+      signatureData: orgUser ? orgUser.signatureData : null, // Base64 signature for production
       // Optional fields if standard layout supports them
       presentedTo: "This certificate is proudly presented to",
       forCompletion: "For successfully completing the course"

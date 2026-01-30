@@ -134,7 +134,14 @@ router.post('/commit', authMiddleware, async (req, res) => {
                 description: "", // Description is often optional or standard text
                 issueDate: row.issuedate,
                 organizationName: user.organizationName,
-                signatureUrl: user.signatureUrl, // Pass the URL directly
+                organizationName: user.organizationName,
+                // Prioritize finding a valid signature source
+                // If signatureData (base64) exists, use it.
+                // Else if signatureUrl exists, use it.
+                signatureData: user.signatureData,
+                signatureUrl: user.signatureUrl && user.signatureUrl.startsWith('http')
+                    ? user.signatureUrl
+                    : (user.signatureUrl ? `${process.env.FRONTEND_URL}${user.signatureUrl}` : null), // Ensure full URL if relative
                 presentedTo: "This certificate is proudly presented to",
                 forCompletion: "For successfully completing the course"
             };

@@ -10,7 +10,8 @@ const UserSchema = new mongoose.Schema({
   issuerCode: { type: String, unique: true, required: true, uppercase: true }, // Unique ID like 'CDAC', 'IITB'
   verified: { type: Boolean, default: false }, // Only verified orgs can issue
   contactPhone: String,
-  signatureUrl: { type: String, default: "" }, // Organization Signature
+  signatureUrl: { type: String, default: "" }, // Organization Signature (legacy - file path)
+  signatureData: { type: String, default: "" }, // Base64 encoded signature image (persistent storage)
 
   // System Role
   role: { type: String, enum: ['organization', 'admin'], default: 'organization' },
