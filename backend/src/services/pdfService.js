@@ -70,8 +70,13 @@ function getFont(doc, name) {
 function downloadImage(url) {
   return new Promise((resolve, reject) => {
     const protocol = url.startsWith('https') ? https : http;
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    };
 
-    protocol.get(url, (response) => {
+    protocol.get(url, options, (response) => {
       // Handle redirects
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         return downloadImage(response.headers.location).then(resolve).catch(reject);
@@ -125,12 +130,13 @@ async function resolveImagePath(relPath) {
   const cleanRel = stripped.replace(/^[\/\\]/, '');
 
   // 2. Try local filesystem first (for development or if file exists locally)
-  // We check multiple potential locations
+  // We check multiple potential locations, INCLUDING frontend/public for local dev
   const localPaths = [
     path.join(baseDir, cleanRel),
     path.join(baseDir, 'uploads', cleanRel),
     path.join(baseDir, 'uploads', 'backgrounds', path.basename(cleanRel)),
-    path.join(baseDir, 'public', cleanRel) // sometimes in public
+    path.join(baseDir, 'public', cleanRel),
+    path.join(baseDir, '..', 'frontend', 'public', cleanRel) // Check sibling frontend folder
   ];
 
   for (const localPath of localPaths) {
