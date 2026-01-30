@@ -3,7 +3,12 @@ const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
+const http = require('http');
 const sizeOf = require('image-size'); // Need to add this package or use simple heuristic
+
+// Frontend URL for fetching template images in production
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // -------------------------------------------------------------
 // STANDARD PROFESSIONAL LAYOUT (Percentage Based)
@@ -59,46 +64,86 @@ function getFont(doc, name) {
   return map[name] || 'Helvetica';
 }
 
-function resolvePath(relPath) {
+/**
+ * Download image from URL and return as Buffer
+ */
+function downloadImage(url) {
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith('https') ? https : http;
+
+    protocol.get(url, (response) => {
+      // Handle redirects
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        return downloadImage(response.headers.location).then(resolve).catch(reject);
+      }
+
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download image: ${response.statusCode}`));
+        return;
+      }
+
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolve(Buffer.concat(chunks)));
+      response.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+/**
+ * Resolve image path - supports both local files and remote URLs
+ * In production, fetches from Netlify frontend
+ */
+async function resolveImagePath(relPath) {
   if (!relPath) return null;
 
-  console.log(`[pdfService] Resolving path: ${relPath}`);
+  console.log(`[pdfService] Resolving image: ${relPath}`);
 
   // Base directory (Root of backend)
   const baseDir = path.resolve(__dirname, '..', '..');
 
   // 1. Clean the input (remove query strings, etc)
   const stripped = relPath.split('?')[0];
-
-  // 2. Try absolute path
-  if (path.isAbsolute(stripped) && fs.existsSync(stripped)) {
-    return stripped;
-  }
-
-  // 3. Try relative to CWD (Project Root)
-  // Ensure we strip leading slash so path.join works correctly
   const cleanRel = stripped.replace(/^[\/\\]/, '');
 
-  const attempt1 = path.join(baseDir, cleanRel);
-  if (fs.existsSync(attempt1)) {
-    console.log(`[pdfService] Found at: ${attempt1}`);
-    return attempt1;
+  // 2. Try local filesystem first (for development)
+  const localPaths = [
+    path.join(baseDir, cleanRel),
+    path.join(baseDir, 'uploads', cleanRel),
+    path.join(baseDir, 'uploads', 'backgrounds', path.basename(cleanRel))
+  ];
+
+  for (const localPath of localPaths) {
+    if (fs.existsSync(localPath)) {
+      console.log(`[pdfService] Found locally: ${localPath}`);
+      return localPath;
+    }
   }
 
-  // 4. Try removing 'uploads' from start if doubled, or adding it
-  // Case: DB has "uploads/t1.png", Folder is "uploads/t1.png" -> Matches above
-  // Case: DB has "t1.png", Folder is "uploads/t1.png"
-  const attempt2 = path.join(baseDir, 'uploads', cleanRel);
-  if (fs.existsSync(attempt2)) {
-    console.log(`[pdfService] Found at (with uploads prefix): ${attempt2}`);
-    return attempt2;
+  // 3. In production, try to download from Netlify frontend
+  if (FRONTEND_URL && !FRONTEND_URL.includes('localhost')) {
+    try {
+      const imageUrl = `${FRONTEND_URL}${stripped}`;
+      console.log(`[pdfService] Downloading from: ${imageUrl}`);
+      const imageBuffer = await downloadImage(imageUrl);
+
+      // Save to temp directory for use
+      const tempDir = path.join(baseDir, 'uploads', 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      const tempPath = path.join(tempDir, path.basename(stripped));
+      fs.writeFileSync(tempPath, imageBuffer);
+      console.log(`[pdfService] Downloaded and saved to: ${tempPath}`);
+      return tempPath;
+    } catch (err) {
+      console.error(`[pdfService] Failed to download image: ${err.message}`);
+    }
   }
 
-  // Case: DB has "/uploads/..." but maybe actual folder is slightly different?
-  // Let's rely on standard 'uploads' folder relative to backend root.
-
-  console.warn(`[pdfService] Failed to resolve: ${relPath}. Tried: ${attempt1}, ${attempt2}`);
-  return attempt1; // Return the most likely one even if not found, to let fs fail later gracefully
+  console.warn(`[pdfService] Could not resolve image: ${relPath}`);
+  return null;
 }
 
 /**
@@ -107,8 +152,8 @@ function resolvePath(relPath) {
 async function generateCertificatePdf(template, data, outputPath, certId, qrUrl) {
   return new Promise(async (resolve, reject) => {
     try {
-      // 1. Resolve Background & Dimensions
-      const bgPath = resolvePath(template.backgroundImage || template.bgImageUrl);
+      // 1. Resolve Background & Dimensions (now async for remote fetch)
+      const bgPath = await resolveImagePath(template.backgroundImage || template.bgImageUrl);
       let width = 842; // A4 Landscape default
       let height = 595;
 
@@ -200,8 +245,8 @@ async function generateCertificatePdf(template, data, outputPath, certId, qrUrl)
       // data.signatureUrl might come in differently
       const sigUrl = data.signatureUrl || (data.organization && data.organization.signatureUrl);
       if (sigUrl) {
-        const sigPath = resolvePath(sigUrl);
-        if (fs.existsSync(sigPath)) {
+        const sigPath = await resolveImagePath(sigUrl);
+        if (sigPath && fs.existsSync(sigPath)) {
           const sW = width * L.signatureImg.w;
           const sH = height * L.signatureImg.h;
           // Center the image over the line

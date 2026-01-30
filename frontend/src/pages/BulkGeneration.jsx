@@ -280,11 +280,11 @@ export default function BulkGeneration() {
                                             {/* Image Preview */}
                                             {(tpl.previewUrl || tpl.bgImageUrl) ? (
                                                 <img
-                                                    src={`${import.meta.env.VITE_API_URL}${tpl.previewUrl || tpl.bgImageUrl}`}
+                                                    src={tpl.previewUrl || tpl.bgImageUrl}
                                                     alt={tpl.name}
                                                     className="w-full h-40 object-cover"
                                                     onError={(e) => {
-                                                        e.target.src = `${import.meta.env.VITE_API_URL}${tpl.bgImageUrl}`;
+                                                        e.target.src = tpl.bgImageUrl;
                                                     }}
                                                 />
                                             ) : (

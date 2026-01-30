@@ -38,7 +38,7 @@ export default function TemplatePreview() {
     <div className="p-8 max-w-5xl mx-auto">
       <div className="w-full h-[420px] bg-gray-100 rounded-xl overflow-hidden shadow">
         <img
-          src={`${import.meta.env.VITE_BACKEND_URL}${template.bgImageUrl}`}
+          src={template.bgImageUrl}
           alt={template.name}
           className="w-full h-full object-cover"
         />

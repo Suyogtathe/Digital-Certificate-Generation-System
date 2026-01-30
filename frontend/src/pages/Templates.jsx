@@ -60,7 +60,7 @@ export default function Templates() {
               <div className="h-48 bg-gray-100 overflow-hidden relative">
                 {template.bgImageUrl && (
                   <img
-                     src={`${import.meta.env.VITE_BACKEND_URL}${template.bgImageUrl}`}
+                     src={template.bgImageUrl}
                     alt={template.name}
                     className="object-cover h-full w-full opacity-60 grayscale-[30%] group-hover:opacity-100 group-hover:grayscale-0 transform group-hover:scale-110 transition-all duration-500 ease-out"
                   />

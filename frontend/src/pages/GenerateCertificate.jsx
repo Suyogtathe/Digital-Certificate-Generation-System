@@ -192,7 +192,7 @@ export default function GenerateCertificate() {
               <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden bg-gray-100 border border-gray-100 shadow-inner">
                 {template.bgImageUrl ? (
                   <img
-                    src={`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}${template.bgImageUrl}`}
+                    src={template.bgImageUrl}
                     alt={template.name}
                     className="object-cover w-full h-full hover:scale-105 transition-transform duration-500"
                   />
