@@ -146,11 +146,16 @@ async function resolveImagePath(relPath) {
     }
   }
 
-  // 3. In production (or if local missing), try to download from Netlify frontend
-  // Fallback URL if env var is missing (FIX for deployment issues)
-  const remoteUrl = FRONTEND_URL || 'https://aesthetic-lollipop-c2ab2e.netlify.app';
+  // 3. In production (or if local missing), we MUST try to download.
+  // We prioritize the hardcoded production URL if the env var looks like localhost (common misconfiguration on Render)
+  let remoteUrl = 'https://aesthetic-lollipop-c2ab2e.netlify.app'; // Default to known production
 
-  if (remoteUrl && !remoteUrl.includes('localhost')) {
+  if (FRONTEND_URL && !FRONTEND_URL.includes('localhost')) {
+    remoteUrl = FRONTEND_URL;
+  }
+
+  // We always try to download if we reached here (local failed)
+  if (remoteUrl) {
     try {
       // Ensure we don't double slash
       const baseUrl = remoteUrl.endsWith('/') ? remoteUrl.slice(0, -1) : remoteUrl;
@@ -159,7 +164,7 @@ async function resolveImagePath(relPath) {
       const pathPart = normalizedRel.startsWith('/') ? normalizedRel : `/${normalizedRel}`;
       const imageUrl = `${baseUrl}${pathPart}`;
 
-      console.log(`[pdfService] Downloading from Frontend: ${imageUrl}`);
+      console.log(`[pdfService] Downloading from Frontend (${imageUrl})...`);
       const imageBuffer = await downloadImage(imageUrl);
 
       // Save to temp directory for use
@@ -180,7 +185,7 @@ async function resolveImagePath(relPath) {
     }
   }
 
-  console.warn(`[pdfService] Could not resolve image: ${relPath} (FRONTEND_URL: ${remoteUrl})`);
+  console.warn(`[pdfService] Could not resolve image: ${relPath} (Tried: Local & ${remoteUrl})`);
   return null;
 }
 
@@ -276,7 +281,9 @@ async function generateCertificatePdf(template, data, outputPath, certId, qrUrl)
 
       // DATE
       drawAt(L.dateLabel.text, L.dateLabel.x, L.dateLabel.y, L.dateLabel.fontSize, L.dateLabel.font, '#333');
-      const dateVal = data.issueDate ? new Date(data.issueDate).toLocaleDateString() : new Date().toLocaleDateString();
+      const dateVal = data.issueDate
+        ? new Date(data.issueDate).toLocaleDateString('en-GB') // Forces DD/MM/YYYY
+        : new Date().toLocaleDateString('en-GB');
       drawAt(dateVal, L.dateValue.x, L.dateValue.y, L.dateValue.fontSize, L.dateValue.font, '#333');
 
       // SIGNATURE
