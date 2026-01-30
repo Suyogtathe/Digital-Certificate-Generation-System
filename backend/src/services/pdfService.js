@@ -141,12 +141,16 @@ async function resolveImagePath(relPath) {
   }
 
   // 3. In production (or if local missing), try to download from Netlify frontend
-  // This is crucial for Render + Netlify setup where bg images are on frontend
-  if (FRONTEND_URL && !FRONTEND_URL.includes('localhost')) {
+  // Fallback URL if env var is missing (FIX for deployment issues)
+  const remoteUrl = FRONTEND_URL || 'https://aesthetic-lollipop-c2ab2e.netlify.app';
+
+  if (remoteUrl && !remoteUrl.includes('localhost')) {
     try {
       // Ensure we don't double slash
-      const baseUrl = FRONTEND_URL.endsWith('/') ? FRONTEND_URL.slice(0, -1) : FRONTEND_URL;
-      const pathPart = cleanRel.startsWith('/') ? cleanRel : `/${cleanRel}`;
+      const baseUrl = remoteUrl.endsWith('/') ? remoteUrl.slice(0, -1) : remoteUrl;
+      // Ensure forward slashes for URL
+      const normalizedRel = cleanRel.replace(/\\/g, '/');
+      const pathPart = normalizedRel.startsWith('/') ? normalizedRel : `/${normalizedRel}`;
       const imageUrl = `${baseUrl}${pathPart}`;
 
       console.log(`[pdfService] Downloading from Frontend: ${imageUrl}`);
@@ -166,11 +170,11 @@ async function resolveImagePath(relPath) {
       console.log(`[pdfService] Downloaded and saved to: ${tempPath}`);
       return tempPath;
     } catch (err) {
-      console.error(`[pdfService] Failed to download image from frontend: ${err.message}`);
+      console.error(`[pdfService] Failed to download image from frontend (${remoteUrl}): ${err.message}`);
     }
   }
 
-  console.warn(`[pdfService] Could not resolve image: ${relPath}`);
+  console.warn(`[pdfService] Could not resolve image: ${relPath} (FRONTEND_URL: ${remoteUrl})`);
   return null;
 }
 
